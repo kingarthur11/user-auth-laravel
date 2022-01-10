@@ -39,7 +39,9 @@ class UserController extends Controller
             return response()->json(json_decode($validation->errors(), true));
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $input['email'])
+                        ->orWhere('phone_number', $input['phone_number'])
+                        ->first();
 
         if (!$user) {
             $input['password'] = Hash::make($input['password']);
@@ -63,44 +65,28 @@ class UserController extends Controller
         ]);
 
         $fieldType = filter_var($request->phone_number, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone_number';
-       
-        if (auth()->guard('user')->attempt(array($fieldType => $input['phone_number'], 'password' => $input['password']))) {
 
-            config(['auth.guards.api.provider' => 'user']);
+        $user = User::where('email', $input['phone_number'])
+                        ->orWhere('phone_number', $input['phone_number'])
+                        ->first();
+        if ($user) {
+            if (Hash::check($request->password, $user->password)) {
+                $token = $user->createToken('Laravel Password Grant Client')->accessToken;
 
-            $response['success'] = 'Successfully logged in';
-            $response["user"] = User::findOrFail(auth()->guard('user')->user()->id);
-
-            $oClient = OClient::where(
-                [
-                    'password_client'=> 1,
-                    'provider' => 'users'
-            ])->latest()->first();
-
-            $body = [
-                'grant_type' => 'password',
-                'client_id' => $oClient->id,
-                'client_secret' => $oClient->secret,
-                'username' => request('phone_number'),
-                'password' => request('password'),
-                'scope' => '*'
-            ];
-
-            $request = Request::create('/oauth/token', 'POST', $body);
-            $result = $this->app->handle($request);
-            $result = json_decode($result->getContent(), true);
-            $response['token'] = $result['access_token'];
-            $response['refresh_token'] = $result['refresh_token'];
-            $clientName = auth()->guard('user')->user()->first_name.' '.auth()->guard('user')->user()->last_name;
-
-            return response()->json([
-                'token' => $response['token'],
-                'refresh_token' => $response['refresh_token'],
-            	'user' => auth()->guard('user')->user()
-            ], 200);
-        }else{
-            return response()->json(['error' => ['Email and Password are Wrong.']], 200);
+                return response()->json([
+                    'status' => 'success',
+                    'token' => $token,
+                    'user' => $user,
+                ], 200);
+            } else {
+                $response = ["message" => "Password mismatch"];
+                return response($response, 422);
+            }
+        } else {
+            $response = ["message" =>'User does not exist'];
+            return response($response, 422);
         }
+
     }
     public function index()
     {
