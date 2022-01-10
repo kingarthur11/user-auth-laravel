@@ -22,7 +22,7 @@ Route::group(['middleware' => 'cors'], function (){
         Route::post('/login', [UserController::class, 'login']);
         Route::post('/register', [UserController::class, 'register']);
 
-        Route::group( ['middleware' => ['auth:user-api','scopes:user'] ], function(){
+        Route::group( ['middleware' => ['auth:user-api'] ], function(){
 
             Route::get('/getall', [UserController::class, 'index']);
             Route::get('/getone/{user}', [UserController::class, 'show']);
